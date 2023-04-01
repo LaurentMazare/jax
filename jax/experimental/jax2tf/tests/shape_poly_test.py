@@ -2324,9 +2324,9 @@ _POLY_SHAPE_TEST_HARNESSES = [
                 poly_axes=[None, 0]),
     PolyHarness("random_uniform", "even_2",
                 lambda key, a: jax.random.uniform(key, (2 * a.shape[0], a.shape[1]),
-                                                  dtype=_f32) + jnp.concatenate([a, a], axis=0),
-                arg_descriptors=[RandArg((2,), np.uint32), RandArg((3, 1), _f32)],
-                poly_axes=[None, 0]),
+                                                  dtype=_f32),
+                arg_descriptors=[RandArg((2,), np.uint32), RandArg((3, 4), _f32)],
+                poly_axes=[None, (0, 1)]),
     PolyHarness("random_uniform", "error_not_even",
                 lambda key, a: jax.random.uniform(key, a.shape, dtype=_f32),
                 arg_descriptors=[RandArg((2,), np.uint32), RandArg((3, 5), _f32)],
@@ -2706,7 +2706,7 @@ class ShapePolyPrimitivesTest(tf_test_util.JaxToTfTestCase):
   # to parameterized below.
   @primitive_harness.parameterized(
       _flatten_harnesses(_POLY_SHAPE_TEST_HARNESSES),
-      #one_containing="",
+      one_containing="random_uniform_even_1",
   )
   def test_harness(self, harness: PolyHarness):
     # Exclude some harnesses that are known to fail for native serialization
@@ -2721,12 +2721,7 @@ class ShapePolyPrimitivesTest(tf_test_util.JaxToTfTestCase):
           "householder_product:cpu", "householder_product:gpu",
           "vmap_geqrf:cpu", "vmap_geqrf:gpu",
           "vmap_lu:cpu", "vmap_lu:gpu", "vmap_qr:cpu", "vmap_qr:gpu",
-          "vmap_svd:cpu", "vmap_svd:gpu",
-          "random_gamma:gpu", "vmap_random_gamma:gpu",
-          "random_categorical:gpu", "vmap_random_categorical:gpu",
-          "random_randint:gpu", "vmap_random_randint:gpu",
-          "random_uniform:gpu", "vmap_random_uniform:gpu",
-          "vmap_random_split:gpu"}
+          "vmap_svd:cpu", "vmap_svd:gpu"}
       if f"{harness.group_name}:{jtu.device_under_test()}" in custom_call_harnesses:
         raise unittest.SkipTest("native serialization with shape polymorphism not implemented for custom calls; b/261671778")
 

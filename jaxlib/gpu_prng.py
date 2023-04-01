@@ -65,14 +65,23 @@ def _threefry2x32_lowering(prng, platform, keys, data,
 
   if isinstance(length, int):
     opaque = prng.threefry2x32_descriptor(length)
+    indices_of_shape_operands = ()
   else:
     opaque = prng.threefry2x32_descriptor(-1)
     assert (ir.RankedTensorType(length.type).element_type ==
             ir.IntegerType.get_signless(64)), length
     assert (ir.RankedTensorType(length.type).shape ==
             [1]), (length, ir.RankedTensorType(length.type).shape)
+    # Pass the length, which will be used by the custom call target since the
+    # static length in the descriptor is -1.
     operands.append(length)
     operand_layouts.append((0,))
+    # We also need to pass separately the shapes of the outputs.
+    operands.append(length)
+    operand_layouts.append((0,))
+    operands.append(length)
+    operand_layouts.append((0,))
+    indices_of_shape_operands = (5, 6)
 
   return custom_call(
       f"{platform}_threefry2x32",
@@ -80,7 +89,8 @@ def _threefry2x32_lowering(prng, platform, keys, data,
       operands,
       backend_config=opaque,
       operand_layouts=operand_layouts,
-      result_layouts=[layout] * 2)
+      result_layouts=[layout] * 2,
+      indices_of_shape_operands=indices_of_shape_operands)
 
 
 cuda_threefry2x32 = partial(_threefry2x32_lowering, _cuda_prng, "cu")

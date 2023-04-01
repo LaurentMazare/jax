@@ -28,6 +28,7 @@ def custom_call(
     backend_config: Optional[str] = None,
     has_side_effect: bool = False,
     api_version: int = 2,
+    call_target_tuple_result: bool = False,
     operand_output_aliases: Dict[int, int] = {},
     indices_of_shape_operands: Sequence[int] = (),
 ) -> Union[ir.Value, Sequence[ir.Value]]:
@@ -38,15 +39,20 @@ def custom_call(
 
   Args:
   ...
+  call_target_tuple_result: if True and there are multiple results, hen
+    assume that the call target will tuple the results.
   operand_output_alias: a dictionary mapping input numbers -> output numbers
     that must alias.
   indices_of_shape_operands: in presence of dynamic shapes, must pass in the
     output shapes as some of the operands. These are the indices of those
-    operands.
+    operands. These operands are removed after shape refinement if the
+    remaining shapes are static, before conversion to MHLO.
   """
   i32_type = ir.IntegerType.get_signless(32)
-  results = (out_types
-             if len(out_types) == 1 else [ir.TupleType.get_tuple(out_types)])
+  if call_target_tuple_result and len(out_types) > 1:
+    results = [ir.TupleType.get_tuple(out_types)]
+  else:
+    results = out_types
   attributes = dict(
       call_target_name=ir.StringAttr.get(call_target_name),
       has_side_effect=ir.BoolAttr.get(has_side_effect),
@@ -66,9 +72,9 @@ def custom_call(
       ]),
       output_operand_aliases=ir.ArrayAttr.get([
           hlo.OutputOperandAlias.get(
-              output_tuple_indices=[] if len(out_types) == 1 else [output],
+              output_tuple_indices=[] if len(out_types) == 1 or not call_target_tuple_result else [output],
               operand_index=input,
-              operand_tuple_indices=[])
+              operand_tuple_indices=[] if len(out_types) > 1 and call_target_tuple_result else [output])
           for input, output in operand_output_aliases.items()
       ])
   )
@@ -84,10 +90,10 @@ def custom_call(
   operands = [opnd if isinstance(opnd, ir.Value) else opnd.result
               for opnd in operands]
   out = hlo.CustomCallOp.build_generic(results=results, operands=operands, attributes=attributes)
-  if len(out_types) == 1:
-    return out.result
-  else:
-    return [
+  if call_target_tuple_result and len(out_types) > 1:
+        return [
         hlo.GetTupleElementOp(out, ir.IntegerAttr.get(i32_type, i)).result
         for i in range(len(out_types))
     ]
+  else:
+    return out.results
